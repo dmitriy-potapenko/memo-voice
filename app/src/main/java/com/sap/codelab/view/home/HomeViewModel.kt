@@ -2,11 +2,14 @@ package com.sap.codelab.view.home
 
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import com.sap.codelab.model.Memo
 import com.sap.codelab.repository.Repository
 import com.sap.codelab.utils.coroutines.ScopeProvider
+import com.sap.codelab.utils.livedata.SingleLiveEvent
+import com.sap.codelab.voiceengine.IVoiceRecognitionListener
+import com.sap.codelab.voiceengine.SpeechRecognizerInteractor
+import com.sap.codelab.voiceengine.VoiceCommands
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -17,7 +20,11 @@ import kotlinx.coroutines.withContext
 internal class HomeViewModel : ViewModel() {
 
     private var memos: LiveData<List<Memo>> = EmptyLiveData()
-    var showPermissionDeniedDialogEvent: MutableLiveData<Unit> = MutableLiveData()
+    val showPermissionDeniedDialogEvent = SingleLiveEvent<Unit>()
+    val voiceCommandEvent = SingleLiveEvent<VoiceCommands>()
+    val startListeningEvent = SingleLiveEvent<Unit>()
+    val errorProcessingEvent = SingleLiveEvent<Unit>()
+    val progressEvent = SingleLiveEvent<Boolean>()
 
     suspend fun getAllMemos(): LiveData<List<Memo>> {
         return withContext(Dispatchers.Default) {
@@ -48,11 +55,35 @@ internal class HomeViewModel : ViewModel() {
     }
 
     fun onRecordAudioPermissionDenied() {
-        showPermissionDeniedDialogEvent.value = null
+        showPermissionDeniedDialogEvent.call()
     }
 
-    fun launchVoiceAssistant() {
+    fun launchVoiceRecognizer() {
+        SpeechRecognizerInteractor.instance.startVoiceRecognition(
+            object : IVoiceRecognitionListener {
+                override fun onReady() {
+                    progressEvent.value = true
+                    startListeningEvent.call()
+                }
 
+                override fun onResult(result: String) {
+                    progressEvent.value = false
+                    handleResult(result)
+                }
+
+                override fun onFailure(error: Int) {
+                    progressEvent.value = false
+                    errorProcessingEvent.call()
+                }
+            }
+        )
+    }
+
+    private fun handleResult(result: String) {
+        val command = VoiceCommands.values()
+            .firstOrNull { it.textRepresentation == result }
+            ?: VoiceCommands.UNRECOGNIZED
+        voiceCommandEvent.postValue(command)
     }
 }
 

@@ -7,9 +7,11 @@ import android.os.Bundle
 import android.provider.Settings
 import android.view.Menu
 import android.view.MenuItem
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.NonNull
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.isVisible
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -21,6 +23,7 @@ import com.sap.codelab.view.detail.BUNDLE_MEMO_ID
 import com.sap.codelab.view.detail.ViewMemo
 import com.sap.codelab.view.home.RecordAudioPermissionRationaleDialog.Companion.REQUEST_CODE_RATIONALE
 import com.sap.codelab.view.home.SettingsDialog.Companion.REQUEST_CODE_SETTINGS
+import com.sap.codelab.voiceengine.VoiceCommands
 import kotlinx.android.synthetic.main.activity_home.*
 import kotlinx.android.synthetic.main.content_home.*
 import kotlinx.coroutines.launch
@@ -39,7 +42,7 @@ internal class Home : AppCompatActivity() {
     private val recordAudioPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
             when {
-                isGranted -> model.launchVoiceAssistant()
+                isGranted -> model.launchVoiceRecognizer()
                 !shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO) -> model.onRecordAudioPermissionDenied()
                 else -> { }
             }
@@ -48,12 +51,41 @@ internal class Home : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_home)
-        setSupportActionBar(toolbar)
-
         //Setup observation of the memo list (that we'll update the adapter with once it changes)
-        model = ViewModelProvider(this).get(HomeViewModel::class.java)
+        model = ViewModelProvider(this)[HomeViewModel::class.java]
+        setSupportActionBar(toolbar)
+        initRecyclerView()
+        setDialogResultListeners()
+        initClickListeners()
         observeViewModel(model, false)
+    }
 
+    override fun onCreateOptionsMenu(menu: Menu): Boolean =
+        menuInflater
+            .inflate(R.menu.menu_home, menu)
+            .also {
+                menuItemShowAll = menu.findItem(R.id.action_show_all)
+                menuItemShowOpen = menu.findItem(R.id.action_show_open)
+            }
+            .let { true }
+
+    /**
+     * Handles actionbar interactions.
+     */
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_show_all -> showMemos(shouldShowAll = true).let { true }
+            R.id.action_show_open -> showMemos(shouldShowAll = false).let { true }
+            else -> super.onOptionsItemSelected(item)
+        }
+    }
+
+    override fun onDestroy() {
+        ScopeProvider.cancel(ui)
+        super.onDestroy()
+    }
+
+    private fun initRecyclerView() {
         //Setup the recycler view and the adapter
         recyclerView.layoutManager = LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
         adapter = MemoAdapter(mutableListOf(), {
@@ -70,25 +102,6 @@ internal class Home : AppCompatActivity() {
         recyclerView.adapter = adapter
         recyclerView.addItemDecoration(DividerItemDecoration(this,
             (recyclerView.layoutManager as LinearLayoutManager).orientation))
-
-        setDialogResultListeners()
-
-        fab.setOnClickListener {
-            //Handles clicks on the FAB button > creates a new Memo
-            startActivity(Intent(this@Home, CreateMemo::class.java))
-        }
-
-        fab.setOnLongClickListener {
-            if (shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO)) {
-                RecordAudioPermissionRationaleDialog().show(
-                    supportFragmentManager,
-                    RecordAudioPermissionRationaleDialog.TAG
-                )
-            } else {
-                recordAudioPermission.launch(Manifest.permission.RECORD_AUDIO)
-            }
-            true
-        }
     }
 
     private fun setDialogResultListeners() {
@@ -106,54 +119,75 @@ internal class Home : AppCompatActivity() {
         }
     }
 
+    private fun initClickListeners() {
+        fab.setOnClickListener {
+            //Handles clicks on the FAB button > creates a new Memo
+            navigateToCreateMemo()
+        }
+
+        fab.setOnLongClickListener {
+            if (shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO)) {
+                RecordAudioPermissionRationaleDialog().show(
+                    supportFragmentManager,
+                    RecordAudioPermissionRationaleDialog.TAG
+                )
+            } else {
+                recordAudioPermission.launch(Manifest.permission.RECORD_AUDIO)
+            }
+            true
+        }
+    }
+
     private fun observeViewModel(@NonNull viewModel: HomeViewModel, showAll: Boolean) {
         ui.launch {
             val observables = if (showAll) viewModel.getAllMemos() else viewModel.getOpenMemos()
-            //Update the model with the observables
-            viewModel.setMemos(observables, this@Home)
-            observables.observe(this@Home) { memoList ->
-                if (memoList != null) adapter.setItems(memoList)
-            }
-            viewModel.showPermissionDeniedDialogEvent.observe(this@Home) {
-                SettingsDialog().show(supportFragmentManager, SettingsDialog.TAG)
+            with(viewModel) {
+                setMemos(observables, this@Home)
+                observables.observe(this@Home) { memoList ->
+                    if (memoList != null) adapter.setItems(memoList)
+                }
+
+                showPermissionDeniedDialogEvent.observe(this@Home) {
+                    SettingsDialog().show(supportFragmentManager, SettingsDialog.TAG)
+                }
+                voiceCommandEvent.observe(this@Home) { command -> handleResult(command) }
+                startListeningEvent.observe(this@Home) { showRecognitionProgress() }
+                errorProcessingEvent.observe(this@Home) { showError() }
+                progressEvent.observe(this@Home) { visible -> progress.isVisible = visible }
             }
         }
     }
 
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.menu_home, menu)
-        menuItemShowAll = menu.findItem(R.id.action_show_all)
-        menuItemShowOpen = menu.findItem(R.id.action_show_open)
-        return true
-    }
-
-    /**
-     * Handles actionbar interactions.
-     */
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            R.id.action_show_all -> {
-                observeViewModel(model, true)
-                //Switch available menu options
-                menuItemShowAll.isVisible = false
-                menuItemShowOpen.isVisible = true
-                true
-            }
-            R.id.action_show_open -> {
-                observeViewModel(model, false)
-                //Switch available menu options
-                menuItemShowOpen.isVisible = false
-                menuItemShowAll.isVisible = true
-                true
-            }
-
-            else -> super.onOptionsItemSelected(item)
+    private fun handleResult(command: VoiceCommands) {
+        when (command) {
+            VoiceCommands.SHOW_ALL -> showMemos(shouldShowAll = true)
+            VoiceCommands.SHOW_OPEN -> showMemos(shouldShowAll = false)
+            VoiceCommands.CREATE_MEMO -> navigateToCreateMemo()
+            VoiceCommands.UNRECOGNIZED -> showUnrecognizedCommand()
         }
     }
 
-    override fun onDestroy() {
-        ScopeProvider.cancel(ui)
-        super.onDestroy()
+    private fun showMemos(shouldShowAll: Boolean) {
+        observeViewModel(model, shouldShowAll)
+        //Switch available menu options
+        menuItemShowAll.isVisible = !shouldShowAll
+        menuItemShowOpen.isVisible = shouldShowAll
+    }
+
+    private fun navigateToCreateMemo() {
+        startActivity(Intent(this@Home, CreateMemo::class.java))
+    }
+
+    private fun showUnrecognizedCommand() {
+        Toast.makeText(applicationContext, getString(R.string.unknown_command), Toast.LENGTH_SHORT).show()
+    }
+
+    private fun showRecognitionProgress() {
+        Toast.makeText(applicationContext, getString(R.string.start_to_speak), Toast.LENGTH_SHORT).show()
+    }
+
+    private fun showError() {
+        Toast.makeText(applicationContext, getString(R.string.start_to_speak), Toast.LENGTH_SHORT).show()
     }
 
     companion object {
