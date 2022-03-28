@@ -8,4 +8,12 @@
     <string name="action_save">Save</string>
     <string name="memo_title_empty_error">Please provide a title for this memo</string>
     <string name="memo_text_empty_error">Please provide a memo description</string>
+    <string name="rationale_dialog_title">Why do you need audio recording?</string>
+    <string name="rationale_dialog_message">Recording audio is required to process voice commands by the voice assistant.</string>
+    <string name="rationale_dialog_ok">OK</string>
+    <string name="rationale_dialog_cancel">Cancel</string>
+    <string name="settings_dialog_message">Voice recognition is disabled. Please, turn on it in System Settings to enable voce assistant</string>
+    <string name="settings_dialog_ok_button">Settings</string>
+    <string name="settings_dialog_cancel_button">Cancel</string>
+    <string name="voice_assistant_disabled">Voce assistant is disabled</string>
 </resources>

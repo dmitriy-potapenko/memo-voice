@@ -2,6 +2,7 @@ package com.sap.codelab.view.home
 
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import com.sap.codelab.model.Memo
 import com.sap.codelab.repository.Repository
@@ -16,6 +17,7 @@ import kotlinx.coroutines.withContext
 internal class HomeViewModel : ViewModel() {
 
     private var memos: LiveData<List<Memo>> = EmptyLiveData()
+    var showPermissionDeniedDialogEvent: MutableLiveData<Unit> = MutableLiveData()
 
     suspend fun getAllMemos(): LiveData<List<Memo>> {
         return withContext(Dispatchers.Default) {
@@ -43,6 +45,14 @@ internal class HomeViewModel : ViewModel() {
         memos.removeObservers(lifecycleOwner)
         //Update the memos that are being observed with the given ones
         memos = newMemos
+    }
+
+    fun onRecordAudioPermissionDenied() {
+        showPermissionDeniedDialogEvent.value = null
+    }
+
+    fun launchVoiceAssistant() {
+
     }
 }
 
