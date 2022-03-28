@@ -23,6 +23,6 @@ class SpeechRecognizerInteractor private constructor() : ISpeechRecognizerIntera
     }
 
     override fun stopVoiceRecognition() {
-        voiceRecognizer.cancelListening()
+        voiceRecognizer.stopListening()
     }
 }

@@ -20,7 +20,7 @@ class MemoSimpleVoiceRecognizer(context: Context) : IVoiceRecognizer {
                 RecognizerIntent.EXTRA_LANGUAGE_MODEL,
                 RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
             )
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.ENGLISH)
         }
     }
 
@@ -72,6 +72,7 @@ class MemoSimpleVoiceRecognizer(context: Context) : IVoiceRecognizer {
             ) ?: emptyList<String>()
             Log.d("MemoSpeechRecognizer", "onResults: ${texts.joinToString(" ")}")
             voiceRecognitionListener?.onResult(texts.joinToString(" "))
+            stopListening()
         }
     }
 
@@ -86,7 +87,7 @@ class MemoSimpleVoiceRecognizer(context: Context) : IVoiceRecognizer {
         speechRecognizer.startListening(speechRecognizerIntent)
     }
 
-    override fun cancelListening() {
+    override fun stopListening() {
         voiceRecognitionListener = null
         speechRecognizer.cancel()
     }
