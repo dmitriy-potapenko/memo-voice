@@ -1,7 +1,5 @@
 package com.sap.codelab.voiceengine
 
-import android.content.Context
-
 class SpeechRecognizerInteractor private constructor() : ISpeechRecognizerInteractor {
 
     private object Holder {
@@ -11,10 +9,10 @@ class SpeechRecognizerInteractor private constructor() : ISpeechRecognizerIntera
     companion object {
         val instance: SpeechRecognizerInteractor by lazy { Holder.INSTANCE }
 
-        private lateinit var voiceRecognizer: IVoiceRecognizer
+        lateinit var voiceRecognizer: IVoiceRecognizer
 
-        fun create(context: Context) {
-            voiceRecognizer = MemoSimpleVoiceRecognizer(context)
+        fun create(voiceRecognizer: IVoiceRecognizer) {
+            this.voiceRecognizer = voiceRecognizer
         }
     }
 
