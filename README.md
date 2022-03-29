@@ -1,3 +1,8 @@
+
+
+https://user-images.githubusercontent.com/102517257/160564823-49e9730f-530d-4dbd-97f8-6ebe9ba7f378.mp4
+
+
 # android-codelab
 Android project that serves as a base for code challenges implemented by applicants.
 The base is written in kotlin. 
@@ -28,3 +33,4 @@ In this challenge the applicant has to implement voice recognition support, the 
 -- Switch the filter on the Homescreen to toggle between "Show All" and "Show Open" > toggling the filter should immediately update the UI accordingly
 - Voice recognition should be implemented in a reusable way, i.e. with proper abstraction layers and the possibility to add further voice actions later on
 - For now supporting English-language commands is sufficient
+
